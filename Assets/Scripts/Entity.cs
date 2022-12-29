@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,14 +5,13 @@ using UnityEngine;
 public class Entity : MonoBehaviour
 {
     private Rigidbody _rb;
-    private int[,] _cubesInfo;
+    private int[,,] _cubesInfo;
     private Vector3 _cubesInfoStartPosition;
     private Cube[] _cubes;
 
     private void Awake()
     {
         _rb = GetComponent<Rigidbody>();
-        _rb.constraints = RigidbodyConstraints.FreezePositionZ | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY;
         _rb.mass = transform.childCount;
         CollectCubes();
         RecalculateCubes();
@@ -24,23 +22,23 @@ public class Entity : MonoBehaviour
         Vector3 min = Vector3.one * float.MaxValue;
         Vector3 max = Vector3.one * float.MinValue;
 
-        for(int i=0; i< transform.childCount;i++)
+        for (int i = 0; i < transform.childCount; i++)
         {
             Transform child = transform.GetChild(i);
             min = Vector3.Min(min, child.localPosition);
             max = Vector3.Max(max, child.localPosition);
         }
 
-        Vector2Int delta = Vector2Int.RoundToInt(max - min);
-        _cubesInfo = new int[delta.x + 1, delta.y + 1];
+        Vector3Int delta = Vector3Int.RoundToInt(max - min);
+        _cubesInfo = new int[delta.x + 1, delta.y + 1, delta.z + 1];
         _cubesInfoStartPosition = min;
         _cubes = GetComponentsInChildren<Cube>();
 
-        for(int i=0; i< transform.childCount;i++)
+        for (int i = 0; i < transform.childCount; i++)
         {
             Transform child = transform.GetChild(i);
-            Vector2Int grid = GridPosition(child.localPosition);
-            _cubesInfo[grid.x, grid.y] = i + 1;
+            Vector3Int grid = GridPosition(child.localPosition);
+            _cubesInfo[grid.x, grid.y, grid.z] = i + 1;
             _cubes[i].Id = i + 1;
         }
     }
@@ -65,7 +63,7 @@ public class Entity : MonoBehaviour
         List<CubeGroup> groups = new List<CubeGroup>();
         int currentGroup = 0;
 
-        while(freeCubeIds.Count > 0)
+        while (freeCubeIds.Count > 0)
         {
             groups.Add(new CubeGroup());
             int id = freeCubeIds[0];
@@ -76,17 +74,19 @@ public class Entity : MonoBehaviour
 
             void checkCube(int id)
             {
-                Vector2Int gridPosition = GridPosition(_cubes[id - 1].transform.localPosition);
+                Vector3Int gridPosition = GridPosition(_cubes[id - 1].transform.localPosition);
 
-                checkNeighbor(Vector2Int.up);
-                checkNeighbor(Vector2Int.right);
-                checkNeighbor(Vector2Int.down);
-                checkNeighbor(Vector2Int.left);
+                checkNeighbor(Vector3Int.up);
+                checkNeighbor(Vector3Int.right);
+                checkNeighbor(Vector3Int.down);
+                checkNeighbor(Vector3Int.left);
+                checkNeighbor(Vector3Int.forward);
+                checkNeighbor(Vector3Int.back);
 
-                void checkNeighbor(Vector2Int direction)
+                void checkNeighbor(Vector3Int direction)
                 {
                     int id = GetNeighbor(gridPosition, direction);
-                    if(freeCubeIds.Remove(id))
+                    if (freeCubeIds.Remove(id))
                     {
                         groups[currentGroup].Cubes.Add(id);
                         checkCube(id);
@@ -118,69 +118,59 @@ public class Entity : MonoBehaviour
 
     public void DetouchCube(Cube cube)
     {
-        Vector2Int grid = GridPosition(cube.transform.localPosition);
-        _cubesInfo[grid.x, grid.y] = 0;
+        Vector3Int grid = GridPosition(cube.transform.localPosition);
+        _cubesInfo[grid.x, grid.y, grid.z] = 0;
         _cubes[cube.Id - 1] = null;
 
         cube.transform.parent = null;
         var rb = cube.gameObject.AddComponent<Rigidbody>();
-        rb.constraints = RigidbodyConstraints.FreezePositionZ;
 
         RecalculateCubes();
     }
 
 
 
-    private Vector2Int GridPosition(Vector3 localPosition)
+    private Vector3Int GridPosition(Vector3 localPosition)
     {
-        return Vector2Int.RoundToInt(localPosition - _cubesInfoStartPosition);
+        return Vector3Int.RoundToInt(localPosition - _cubesInfoStartPosition);
     }
 
-    private int GetNeighbor(Vector2Int position, Vector2Int direction)
+    private int GetNeighbor(Vector3Int position, Vector3Int direction)
     {
-        Vector2Int gridPosition = position + direction;
+        Vector3Int gridPosition = position + direction;
         if (gridPosition.x < 0 || gridPosition.x >= _cubesInfo.GetLength(0)
-            || gridPosition.y < 0 || gridPosition.y >= _cubesInfo.GetLength(1))
+            || gridPosition.y < 0 || gridPosition.y >= _cubesInfo.GetLength(1)
+            || gridPosition.z < 0 || gridPosition.z >= _cubesInfo.GetLength(2))
             return 0;
 
-        return _cubesInfo[gridPosition.x, gridPosition.y];
+        return _cubesInfo[gridPosition.x, gridPosition.y, gridPosition.z];
     }
 
-    private void OnDrawGizmos()
+    private void OnDrawGizmosSelected()
     {
         if (!Application.isPlaying)
             return;
 
         Gizmos.matrix = transform.localToWorldMatrix;
-        for(int x =0; x < _cubesInfo.GetLength(0);x++)
+        for (int x = 0; x < _cubesInfo.GetLength(0); x++)
         {
-            for(int y = 0; y < _cubesInfo.GetLength(1);y++)
+            for (int y = 0; y < _cubesInfo.GetLength(1); y++)
             {
-                Vector3 position = _cubesInfoStartPosition + new Vector3(x, y, 0);
-                if (_cubesInfo[x, y] == 0)
+                for (int z = 0; z < _cubesInfo.GetLength(2); z++)
                 {
-                    Gizmos.color = Color.green;
-                    Gizmos.DrawSphere(position, 0.1f);
+                    Vector3 position = _cubesInfoStartPosition + new Vector3(x, y, z);
+                    if (_cubesInfo[x, y, z] == 0)
+                    {
+                        Gizmos.color = Color.green;
+                        Gizmos.DrawSphere(position, 0.1f);
+                    }
+                    else
+                    {
+                        Gizmos.color = Color.red;
+                        Gizmos.DrawSphere(position, 0.2f);
+                    }
                 }
-                else
-                {
-                    Gizmos.color = Color.red;
-                    Gizmos.DrawSphere(position, 0.2f);
-                }
-
             }
-        }
-    }
-
-    [ContextMenu("Randomize Position Z")]
-    private void RandomizePositionZ()
-    {
-        for (int i = 0; i < transform.childCount; i++)
-        {
-            Transform child = transform.GetChild(i);
-            Vector3 localPosition = child.localPosition;
-            localPosition.z = Random.Range(-0.15f, 0.15f);
-            child.localPosition = localPosition;
         }
     }
 }

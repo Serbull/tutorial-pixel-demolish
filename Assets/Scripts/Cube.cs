@@ -6,6 +6,7 @@ public class Cube : MonoBehaviour
     private bool _detouched;
 
     public int Id { get; set; }
+    public bool Detouched => _detouched;
 
     [ContextMenu("Detouch cube")]
     public void Detouch()
